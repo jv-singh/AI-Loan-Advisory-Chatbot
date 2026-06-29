@@ -1,0 +1,250 @@
+"""
+backend/agents/nodes/response_synthesizer.py
+──────────────────────────────────────────────
+Node 8: Response Synthesizer Agent (Final Node)
+
+This is the most important node — the one that produces the user-facing answer.
+
+Responsibilities:
+  1. Collect all structured agent outputs into a context bundle
+  2. Inject retrieved document chunks as grounding material
+  3. Call the LLM with strict instructions to cite sources and avoid invention
+  4. Apply hallucination guardrails: inject warnings on low-confidence responses
+  5. Extract cited sources list for UI attribution
+  6. Compute final confidence score
+
+Anti-hallucination mechanisms:
+  - System prompt explicitly forbids answering without document support
+  - temperature=0.1 reduces variance
+  - Confidence score < threshold triggers a disclaimer paragraph
+  - If retrieved_documents is empty, synthesizer returns a safe non-answer
+  - LLM is instructed to say "I don't have enough information" over guessing
+
+Response format returned:
+  state["final_response"]  → full markdown-formatted answer
+  state["sources"]         → list of document names cited
+  state["confidence_score"] → 0.0–1.0
+"""
+
+from __future__ import annotations
+
+import json
+import structlog
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import SystemMessage, HumanMessage
+
+from backend.config import settings
+from backend.agents.state import LoanAdvisoryState
+
+log = structlog.get_logger(__name__)
+
+
+SYNTHESIZER_SYSTEM_PROMPT = """You are a precise, professional Loan Advisory AI.
+
+Your job is to answer the user's question using ONLY the information provided below.
+
+STRICT RULES:
+1. NEVER make up numbers, rates, policies, or eligibility criteria not in the context.
+2. ALWAYS cite the document source when using its information, using [Source: <name>] inline.
+3. If the context doesn't fully answer the question, say so clearly and suggest what the user should ask a loan officer.
+4. Use ₹ for Indian Rupee amounts. Format large numbers with commas (e.g., ₹5,00,000).
+5. For eligibility queries, always state both the VERDICT (Eligible/Not Eligible) and the REASONS.
+6. For EMI queries, always show the monthly amount prominently.
+7. Keep responses structured with clear headers when multiple topics are covered.
+8. Tone: professional, clear, empathetic. This person is making an important financial decision.
+
+AVAILABLE CONTEXT:
+{context_block}
+
+AGENT ANALYSIS RESULTS:
+{agent_results}
+
+HALLUCINATION RISK: {hallucination_risk}
+{risk_warning}
+
+Now answer the user's question based strictly on the above context."""
+
+LOW_CONFIDENCE_WARNING = """
+⚠ IMPORTANT: The retrieved documents have low relevance to this query.
+Your response must prominently note that you could not find authoritative policy
+information for this specific question, and recommend the user consult a loan officer.
+"""
+
+
+def _format_context(documents: list[dict]) -> str:
+    """Formats retrieved chunks into a numbered reference block."""
+    if not documents:
+        return "No relevant policy documents retrieved."
+    
+    lines = []
+    for i, doc in enumerate(documents, 1):
+        lines.append(
+            f"[{i}] Source: {doc.get('source', 'Unknown')} "
+            f"(relevance: {doc.get('score', 0):.2f})\n"
+            f"{doc.get('content', '')}\n"
+        )
+    return "\n---\n".join(lines)
+
+
+def _format_agent_results(state: LoanAdvisoryState) -> str:
+    """Serialises structured agent outputs into readable JSON blocks."""
+    results = {}
+
+    if emp := state.get("employment_data"):
+        results["employment_verification"] = emp
+    if credit := state.get("credit_analysis"):
+        results["credit_analysis"] = credit
+    if fraud := state.get("fraud_assessment"):
+        results["fraud_assessment"] = fraud
+    if elig := state.get("eligibility_result"):
+        results["eligibility_determination"] = elig
+    if emi := state.get("emi_details"):
+        results["emi_calculation"] = emi
+
+    if not results:
+        return "No structured agent analysis available."
+
+    return json.dumps(results, indent=2, default=str)
+
+
+def _extract_sources(documents: list[dict]) -> list[str]:
+    """Deduplicated list of document sources cited."""
+    seen = set()
+    sources = []
+    for doc in documents:
+        src = doc.get("source", "Unknown")
+        if src not in seen:
+            seen.add(src)
+            sources.append(src)
+    return sources
+
+
+def _compute_confidence(state: LoanAdvisoryState) -> float:
+    """
+    Composite confidence score (0–1):
+      - Retrieval confidence (40%)
+      - Agent coverage (40%): how many expected agents actually ran
+      - Fraud risk penalty (20%)
+    """
+    retrieval_score = state.get("retrieval_confidence", 0.0) * 0.40
+
+    # Agent coverage
+    required = set(state.get("requires_agents", []))
+    ran = {
+        "employment_verifier": state.get("employment_data") is not None,
+        "credit_scorer":       state.get("credit_analysis") is not None,
+        "fraud_detector":      state.get("fraud_assessment") is not None,
+        "eligibility_checker": state.get("eligibility_result") is not None,
+        "emi_calculator":      state.get("emi_details") is not None,
+    }
+    if required:
+        coverage = sum(1 for a in required if ran.get(a, False)) / len(required)
+    else:
+        coverage = 1.0  # policy/general query — no agents required
+    agent_score = coverage * 0.40
+
+    # Fraud penalty
+    fraud = state.get("fraud_assessment", {}) or {}
+    risk = fraud.get("fraud_risk", "low")
+    fraud_penalty = {"low": 0.20, "medium": 0.10, "high": 0.0}.get(risk, 0.10)
+
+    return round(min(1.0, retrieval_score + agent_score + fraud_penalty), 3)
+
+
+def run(state: LoanAdvisoryState) -> dict:
+    """
+    Generates the final grounded response.
+
+    Reads:  all state fields
+    Writes: state["final_response"], state["sources"], state["confidence_score"]
+    """
+    query            = state["query"]
+    documents        = state.get("retrieved_documents", [])
+    hallucination_risk = state.get("hallucination_risk", "low")
+    error            = state.get("error")
+
+    log.info(
+        "synthesizing_response",
+        query_type=state.get("query_type"),
+        doc_count=len(documents),
+        risk=hallucination_risk,
+    )
+
+    # ── Hard error passthrough ─────────────────────────────────────────────────
+    if error and not documents and not state.get("employment_data"):
+        return {
+            "final_response": (
+                f"I'm unable to process your query at this time due to a system error. "
+                f"Please try again shortly.\n\n"
+                f"*Technical detail: {error}*"
+            ),
+            "sources": [],
+            "confidence_score": 0.0,
+            "fallback_triggered": True,
+        }
+
+    # ── Build prompt ───────────────────────────────────────────────────────────
+    context_block  = _format_context(documents)
+    agent_results  = _format_agent_results(state)
+    risk_warning   = LOW_CONFIDENCE_WARNING if hallucination_risk == "high" else ""
+
+    system_prompt = SYNTHESIZER_SYSTEM_PROMPT.format(
+        context_block=context_block,
+        agent_results=agent_results,
+        hallucination_risk=hallucination_risk.upper(),
+        risk_warning=risk_warning,
+    )
+
+    llm = ChatOpenAI(
+        model=settings.openai_model,
+        temperature=settings.temperature,
+        api_key=settings.openai_api_key,
+    )
+
+    try:
+        response = llm.invoke([
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=query),
+        ])
+
+        final_response = response.content
+
+        # ── Inject low-confidence disclaimer ──────────────────────────────────
+        confidence = _compute_confidence(state)
+        if confidence < settings.hallucination_threshold:
+            disclaimer = (
+                "\n\n---\n"
+                "⚠ **Confidence Notice**: This response is based on limited matching "
+                "policy documents. Please verify the details with a certified loan officer "
+                "before making any financial decisions."
+            )
+            final_response += disclaimer
+
+        sources = _extract_sources(documents)
+
+        log.info(
+            "response_synthesized",
+            confidence=confidence,
+            sources=sources,
+            response_length=len(final_response),
+        )
+
+        return {
+            "final_response": final_response,
+            "sources": sources,
+            "confidence_score": confidence,
+            "fallback_triggered": confidence < settings.hallucination_threshold,
+        }
+
+    except Exception as exc:
+        log.error("synthesis_failed", error=str(exc))
+        return {
+            "final_response": (
+                "I encountered an issue generating your response. "
+                "Please rephrase your question or contact support."
+            ),
+            "sources": [],
+            "confidence_score": 0.0,
+            "fallback_triggered": True,
+            "error": f"Synthesis failed: {exc}",
+        }
