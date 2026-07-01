@@ -30,15 +30,27 @@ async def lifespan(app: FastAPI):
     """
     Application lifespan — runs once on startup and shutdown.
     Warms up the LangGraph agent graph (JIT compile on first invocation is slow).
+    Also pre-loads the embedding model so the first user query doesn't pay
+    the ~10–30s model load cost.
     """
     log.info("starting_loan_advisory_agent", env=settings.app_env)
-    
+
     # Pre-compile the agent graph at startup
     graph = get_graph()
     log.info("agent_graph_ready")
-    
+
+    # Pre-load the embedding model so the first /api/chat request is fast
+    # (sentence-transformers downloads + loads ~80MB on first use otherwise).
+    try:
+        from backend.llm import get_embeddings
+        log.info("warming_up_embedding_model", model=settings.hf_embedding_model)
+        get_embeddings()
+        log.info("embedding_model_ready")
+    except Exception as exc:
+        log.warning("embedding_warmup_failed", error=str(exc))
+
     yield  # Server runs here
-    
+
     log.info("shutting_down")
 
 

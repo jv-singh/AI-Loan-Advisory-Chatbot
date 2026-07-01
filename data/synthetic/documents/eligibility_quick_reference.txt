@@ -1,0 +1,40 @@
+LOAN ELIGIBILITY QUICK REFERENCE CARD
+======================================
+
+MINIMUM CREDIT SCORES BY PRODUCT:
+  Home Loan:         650+
+  Personal Loan:     700+
+  Car Loan:          680+
+  Education Loan:    620+
+  Business Loan:     680+
+
+INCOME REQUIREMENTS:
+  Salaried (Home):          ₹25,000/month minimum
+  Salaried (Personal):      ₹20,000/month minimum
+  Self-Employed (Home):     ₹40,000/month minimum
+  Business (Business Loan): ₹30,000/month net profit
+
+DEBT-TO-INCOME LIMITS:
+  Home Loan:         50% max DTI
+  Personal Loan:     45% max DTI
+  Car Loan:          50% max DTI
+  Education Loan:    55% max DTI (considering future income)
+
+MAXIMUM LOAN AMOUNTS (INCOME MULTIPLES):
+  Home Loan:    60–80x monthly income (based on property value)
+  Personal Loan: 24–40x monthly income
+  Car Loan:      36x monthly income
+  Business Loan: 50–60x monthly income
+
+AUTOMATIC REJECTION TRIGGERS:
+  ✗ Active loan default in last 3 years
+  ✗ Debt-to-income ratio > 60%
+  ✗ Fraudulent or mismatched documentation
+  ✗ High fraud detection score (≥60 points)
+  ✗ Age > 65 at loan maturity
+  ✗ Credit score below product minimum
+
+SPECIAL CASES:
+  • Women applicants: Additional 0.05% rate concession on home loans
+  • Green home loans: 0.10% rate concession for IGBC-rated buildings
+  • First-time buyers: No LTV restriction on property < ₹35,00,000

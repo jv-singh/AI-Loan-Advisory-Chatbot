@@ -114,7 +114,8 @@ def source_chips(sources: list[str]) -> str:
 def query_agent(query: str, applicant_id: str | None = None) -> dict:
     """Send query to FastAPI backend."""
     try:
-        with httpx.Client(timeout=60) as client:
+        # 180s timeout: first request pays for embedding model load + 2x Groq calls.
+        with httpx.Client(timeout=180) as client:
             r = client.post(f"{BACKEND_URL}/api/chat", json={
                 "query": query,
                 "session_id": st.session_state.session_id,

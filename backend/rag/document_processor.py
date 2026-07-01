@@ -23,16 +23,16 @@ import os
 from pathlib import Path
 
 import structlog
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import (
     PyPDFLoader,
     Docx2txtLoader,
     TextLoader,
 )
 from langchain_chroma import Chroma
-from langchain_openai import OpenAIEmbeddings
 
 from backend.config import settings
+from backend.llm import get_embeddings
 
 log = structlog.get_logger(__name__)
 
@@ -96,10 +96,7 @@ def ingest_documents(docs_dir: str | Path, force_reingest: bool = False) -> int:
         return 0
 
     # ── Set up embedding + vector store ───────────────────────────────────────
-    embeddings = OpenAIEmbeddings(
-        model=settings.openai_embedding_model,
-        api_key=settings.openai_api_key,
-    )
+    embeddings = get_embeddings()
     vectorstore = Chroma(
         collection_name="loan_policies",
         embedding_function=embeddings,

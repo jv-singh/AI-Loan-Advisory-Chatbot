@@ -1,0 +1,35 @@
+PERSONAL LOAN POLICY GUIDELINES — v2024.Q4
+===========================================
+
+1. ELIGIBILITY CRITERIA
+- Minimum credit score: 700 (CIBIL)
+- Eligible employment: Salaried employees and self-employed professionals
+- Minimum income: ₹20,000/month (salaried); ₹30,000/month (self-employed)
+- Minimum employment: 1 year at current employer
+- Maximum age: 60 years at loan maturity
+
+2. LOAN PARAMETERS
+- Amount: ₹50,000 to ₹40,00,000
+- Tenure: 12 to 60 months
+- Base interest rate: 10.75% p.a.
+
+3. RATE TIERS (PERSONAL LOAN)
+- Excellent credit (750+): 10.75% p.a.
+- Good credit (700–749): 11.50% p.a.
+- Fair credit (650–699): 13.00% p.a.
+- Below 650: Application rejected
+
+4. PROCESSING FEE
+- 1.00% of loan amount (minimum ₹2,500)
+
+5. REQUIRED DOCUMENTS
+- KYC: Aadhaar card, PAN card, passport-size photograph
+- Salary slips: Last 3 months
+- Bank statements: Last 3 months
+- Employment letter or offer letter
+
+6. REJECTION CRITERIA (AUTOMATIC)
+- Active default on any existing loan
+- More than 3 credit enquiries in past 6 months
+- Debt-to-income ratio above 45%
+- Income not verifiable through payroll or ITR

@@ -1,0 +1,39 @@
+EMI CALCULATION GUIDE
+=====================
+
+STANDARD EMI FORMULA:
+EMI = P × r × (1 + r)^n / ((1 + r)^n − 1)
+
+Where:
+  P = Principal loan amount
+  r = Monthly interest rate (Annual rate ÷ 12 ÷ 100)
+  n = Loan tenure in months
+
+EXAMPLE CALCULATIONS:
+
+Home Loan — ₹30,00,000 at 8.5% for 20 years (240 months):
+  Monthly rate r = 8.5 / 12 / 100 = 0.007083
+  EMI = ₹26,035 per month
+  Total interest paid = ₹32,48,456
+  Total repayment = ₹62,48,456
+
+Personal Loan — ₹5,00,000 at 11% for 3 years (36 months):
+  Monthly rate r = 11 / 12 / 100 = 0.009167
+  EMI = ₹16,370 per month
+  Total interest paid = ₹89,317
+  Total repayment = ₹5,89,317
+
+REDUCING BALANCE METHOD:
+Interest each month is calculated on the outstanding principal, not
+the original loan amount. This means early payments have more interest
+and late payments have more principal — the crossover is typically
+at 40–60% of the loan tenure.
+
+PRE-PAYMENT IMPACT:
+A single pre-payment of ₹1,00,000 in year 3 of a 20-year home loan
+can reduce the total tenure by approximately 2–3 years and save
+₹3–5 lakh in interest (depending on the rate and timing).
+
+PART-PAYMENT STRATEGY:
+Optimal time to part-pay: within the first 5 years, when the interest
+component of each EMI is highest.

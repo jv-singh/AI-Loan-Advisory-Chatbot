@@ -30,10 +30,10 @@ from __future__ import annotations
 
 import json
 import structlog
-from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from backend.config import settings
+from backend.llm import get_llm
 from backend.agents.state import LoanAdvisoryState
 
 log = structlog.get_logger(__name__)
@@ -151,6 +151,67 @@ def _compute_confidence(state: LoanAdvisoryState) -> float:
     return round(min(1.0, retrieval_score + agent_score + fraud_penalty), 3)
 
 
+def _format_emi_response(emi_details: dict, query: str) -> dict:
+    """
+    Builds the final response for pure EMI queries directly from the
+    calculator's structured output, skipping the LLM.
+
+    Returns the same shape as the LLM-path branch.
+    """
+    principal       = emi_details.get("principal", 0)
+    annual_rate     = emi_details.get("annual_rate", 0)
+    tenure_months   = emi_details.get("tenure_months", 0)
+    tenure_years    = emi_details.get("tenure_years", 0)
+    emi             = emi_details.get("monthly_emi", 0)
+    total_payment   = emi_details.get("total_payment", 0)
+    total_interest  = emi_details.get("total_interest", 0)
+    interest_pct    = emi_details.get("interest_percentage", 0)
+    loan_type       = (emi_details.get("loan_type") or "loan").title()
+    half_paid_month = emi_details.get("half_principal_paid_by_month", 0)
+    years_to_half   = round(half_paid_month / 12, 1) if half_paid_month else 0
+
+    response = (
+        f"## 💰 EMI Calculation — {loan_type} Loan\n\n"
+        f"**Monthly EMI: ₹{emi:,.2f}**\n\n"
+        f"### Loan Details\n"
+        f"- **Principal:** ₹{principal:,.0f}\n"
+        f"- **Interest rate:** {annual_rate}% p.a.\n"
+        f"- **Tenure:** {tenure_years} years ({tenure_months} months)\n\n"
+        f"### Total Cost\n"
+        f"- **Total payment:** ₹{total_payment:,.0f}\n"
+        f"- **Total interest:** ₹{total_interest:,.0f} "
+        f"({interest_pct:.1f}% of principal)\n"
+        f"- **50% of principal repaid by:** month {half_paid_month} "
+        f"(~{years_to_half} years)\n\n"
+        f"### First-Year Amortization Snapshot\n"
+        f"| Month | EMI | Principal | Interest | Balance |\n"
+        f"|-------|-----|-----------|----------|---------|\n"
+    )
+    for row in (emi_details.get("display_schedule") or [])[:12]:
+        if row.get("month") == "...":
+            response += f"| ... | ₹{row.get('emi', 0):,.0f} | — | — | — |\n"
+            continue
+        response += (
+            f"| {row.get('month')} | ₹{row.get('emi', 0):,.0f} | "
+            f"₹{row.get('principal_paid', 0):,.0f} | "
+            f"₹{row.get('interest_paid', 0):,.0f} | "
+            f"₹{row.get('balance_remaining', 0):,.0f} |\n"
+        )
+
+    response += (
+        f"\n*This is a mathematical estimate. Actual rates and "
+        f"terms depend on the lender, your credit profile, and current "
+        f"policy at the time of application.*"
+    )
+
+    return {
+        "final_response": response,
+        "sources": [],
+        "confidence_score": 1.0,  # math is exact
+        "fallback_triggered": False,
+    }
+
+
 def run(state: LoanAdvisoryState) -> dict:
     """
     Generates the final grounded response.
@@ -162,13 +223,28 @@ def run(state: LoanAdvisoryState) -> dict:
     documents        = state.get("retrieved_documents", [])
     hallucination_risk = state.get("hallucination_risk", "low")
     error            = state.get("error")
+    emi_details      = state.get("emi_details") or {}
 
     log.info(
         "synthesizing_response",
         query_type=state.get("query_type"),
         doc_count=len(documents),
         risk=hallucination_risk,
+        has_emi=bool(emi_details.get("monthly_emi")),
     )
+
+    # ── Fast path: pure EMI queries ───────────────────────────────────────────
+    # When the EMI calculator has produced a result, surface it directly.
+    # The LLM call is skipped because (a) the math is exact, (b) forcing a
+    # Groq call on a "no relevant docs" context often makes the model say
+    # "I don't have enough information" even when the answer is right there,
+    # and (c) this is the most common query — speed matters.
+    if (
+        emi_details.get("monthly_emi")
+        and not state.get("eligibility_result")
+        and not state.get("credit_analysis")
+    ):
+        return _format_emi_response(emi_details, query)
 
     # ── Hard error passthrough ─────────────────────────────────────────────────
     if error and not documents and not state.get("employment_data"):
@@ -195,11 +271,7 @@ def run(state: LoanAdvisoryState) -> dict:
         risk_warning=risk_warning,
     )
 
-    llm = ChatOpenAI(
-        model=settings.openai_model,
-        temperature=settings.temperature,
-        api_key=settings.openai_api_key,
-    )
+    llm = get_llm()
 
     try:
         response = llm.invoke([

@@ -14,12 +14,12 @@ Architecture note:
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any, Optional, TypedDict
 from langgraph.graph.message import add_messages
 from langchain_core.messages import BaseMessage
 
 
-class LoanAdvisoryState(dict):
+class LoanAdvisoryState(TypedDict):
     """
     Central state that flows through every node in the LangGraph pipeline.
 

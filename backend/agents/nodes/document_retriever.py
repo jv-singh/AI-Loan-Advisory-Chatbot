@@ -22,10 +22,10 @@ Retrieval strategy:
 from __future__ import annotations
 
 import structlog
-from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
 
 from backend.config import settings
+from backend.llm import get_embeddings
 from backend.agents.state import LoanAdvisoryState
 
 log = structlog.get_logger(__name__)
@@ -65,10 +65,7 @@ def run(state: LoanAdvisoryState) -> dict:
     log.info("retrieving_documents", query=enriched_query[:80])
 
     try:
-        embeddings = OpenAIEmbeddings(
-            model=settings.openai_embedding_model,
-            api_key=settings.openai_api_key,
-        )
+        embeddings = get_embeddings()
 
         vectorstore = Chroma(
             collection_name="loan_policies",

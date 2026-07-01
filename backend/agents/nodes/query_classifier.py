@@ -24,10 +24,10 @@ from __future__ import annotations
 
 import json
 import structlog
-from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from backend.config import settings
+from backend.llm import get_llm
 from backend.agents.state import LoanAdvisoryState
 
 log = structlog.get_logger(__name__)
@@ -84,11 +84,7 @@ def run(state: LoanAdvisoryState) -> dict:
     query = state["query"]
     log.info("classifying_query", query=query[:80])
 
-    llm = ChatOpenAI(
-        model=settings.openai_model,
-        temperature=0.0,  # deterministic classification
-        api_key=settings.openai_api_key,
-    )
+    llm = get_llm(temperature=0.0)  # deterministic classification
 
     try:
         response = llm.invoke([

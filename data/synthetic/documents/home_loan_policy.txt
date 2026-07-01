@@ -1,0 +1,38 @@
+HOME LOAN POLICY GUIDELINES — v2024.Q4
+=======================================
+
+1. ELIGIBILITY CRITERIA
+- Minimum age: 21 years; Maximum age at loan maturity: 65 years
+- Minimum credit score: 650 (CIBIL)
+- Minimum monthly income (salaried): ₹25,000
+- Minimum monthly income (self-employed): ₹40,000
+- Minimum employment tenure: 2 years (salaried); 3 years (self-employed)
+- Maximum Debt-to-Income ratio: 50%
+
+2. LOAN PARAMETERS
+- Minimum loan amount: ₹5,00,000
+- Maximum loan amount: ₹7,50,00,000
+- Maximum LTV (Loan-to-Value): 80% of property value
+- Tenure: 5 to 30 years
+- Base interest rate: 8.50% p.a. (floating)
+
+3. RATE TIERS
+- Credit Score 750+: 8.50% p.a.
+- Credit Score 700–749: 9.00% p.a.
+- Credit Score 650–699: 9.75% p.a.
+- Credit Score below 650: Not eligible
+
+4. PROCESSING FEE
+- 0.50% of loan amount (minimum ₹5,000, maximum ₹15,000)
+- Non-refundable once loan is sanctioned
+
+5. REQUIRED DOCUMENTS
+- KYC: Aadhaar card, PAN card
+- Income proof: Salary slips (last 3 months), Form 16
+- Bank statements: Last 6 months
+- Property documents: Sale deed, NOC from builder
+- ITR: Last 2 years with computation
+
+6. PRE-PAYMENT CHARGES
+- Floating rate loans: Nil pre-payment charges
+- Fixed rate loans: 2% on prepaid amount if within 3 years

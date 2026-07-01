@@ -59,7 +59,7 @@ Streamlit Frontend (chat UI)
 
 ### Prerequisites
 - Python 3.11+
-- OpenAI API key
+- **Groq API key (free)** — get one at https://console.groq.com/keys
 
 ### 1. Clone & setup
 ```bash
@@ -74,7 +74,7 @@ pip install -r requirements.txt
 ### 2. Configure environment
 ```bash
 copy .env.example .env
-# Edit .env and add your OPENAI_API_KEY
+# Edit .env and add your GROQ_API_KEY (free from https://console.groq.com/keys)
 ```
 
 ### 3. Generate synthetic data

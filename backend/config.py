@@ -6,8 +6,9 @@ All modules import Settings from here — never read os.environ directly.
 """
 
 from functools import lru_cache
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field
+from typing import Annotated, List
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from pydantic import Field, field_validator
 
 
 class Settings(BaseSettings):
@@ -18,9 +19,23 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # ── OpenAI ────────────────────────────────────────────────────────────────
-    openai_api_key: str = Field(..., alias="OPENAI_API_KEY")
+    # ── Groq (free-tier LLM) ──────────────────────────────────────────────────
+    # Groq exposes an OpenAI-compatible chat endpoint, so we route the
+    # chat model through `groq_api_key` + `groq_model`. Get a free key at
+    # https://console.groq.com/keys
+    llm_provider: str = Field("groq", alias="LLM_PROVIDER")
+    groq_api_key: str = Field(..., alias="GROQ_API_KEY")
+    groq_model: str = Field("llama-3.1-8b-instant", alias="GROQ_MODEL")
     openai_model: str = Field("gpt-4o-mini", alias="OPENAI_MODEL")
+
+    # ── Embeddings (local, free — no API key required) ────────────────────────
+    # Groq does not host an embedding model, so we run a local
+    # sentence-transformer instead. Override via env if you want OpenAI/HF.
+    embedding_provider: str = Field("huggingface", alias="EMBEDDING_PROVIDER")
+    hf_embedding_model: str = Field(
+        "sentence-transformers/all-MiniLM-L6-v2", alias="HF_EMBEDDING_MODEL"
+    )
+    openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     openai_embedding_model: str = Field(
         "text-embedding-3-small", alias="OPENAI_EMBEDDING_MODEL"
     )
@@ -39,10 +54,30 @@ class Settings(BaseSettings):
     app_env: str = Field("development", alias="APP_ENV")
     app_secret_key: str = Field("dev-secret-change-me", alias="APP_SECRET_KEY")
     log_level: str = Field("INFO", alias="LOG_LEVEL")
-    cors_origins: list[str] = Field(
+    cors_origins: Annotated[List[str], NoDecode] = Field(
         default=["http://localhost:8501", "http://localhost:3000"],
         alias="CORS_ORIGINS",
     )
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def _split_cors_origins(cls, v):
+        """Accept JSON arrays or comma-separated strings from .env.
+
+        NoDecode tells pydantic-settings not to json.loads() the env string,
+        so this validator receives the raw string from the .env file.
+        """
+        if isinstance(v, str):
+            v = v.strip()
+            if not v:
+                return []
+            if v.startswith("["):
+                import json
+                return json.loads(v)
+            return [item.strip() for item in v.split(",") if item.strip()]
+        if isinstance(v, (list, tuple)):
+            return list(v)
+        return v
 
     # ── RAG ───────────────────────────────────────────────────────────────────
     chroma_persist_dir: str = Field("./data/chroma_db", alias="CHROMA_PERSIST_DIR")

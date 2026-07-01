@@ -1,0 +1,74 @@
+{
+  "version": "2024-Q4",
+  "last_updated": "2024-11-01",
+  "products": {
+    "home_loan": {
+      "min_amount": 500000,
+      "max_amount": 75000000,
+      "min_tenure_years": 5,
+      "max_tenure_years": 30,
+      "base_rate_pct": 8.5,
+      "processing_fee_pct": 0.5,
+      "min_credit_score": 650,
+      "max_ltv_pct": 80,
+      "eligible_employment": [
+        "salaried",
+        "self_employed_professional",
+        "business"
+      ],
+      "required_documents": [
+        "Salary slips (last 3 months)",
+        "Bank statements (last 6 months)",
+        "ITR (last 2 years)",
+        "Property documents",
+        "KYC: Aadhaar + PAN"
+      ]
+    },
+    "personal_loan": {
+      "min_amount": 50000,
+      "max_amount": 4000000,
+      "min_tenure_years": 1,
+      "max_tenure_years": 5,
+      "base_rate_pct": 10.75,
+      "processing_fee_pct": 1.0,
+      "min_credit_score": 700,
+      "eligible_employment": [
+        "salaried",
+        "self_employed_professional"
+      ],
+      "required_documents": [
+        "Salary slips (last 3 months)",
+        "Bank statements (last 3 months)",
+        "KYC: Aadhaar + PAN"
+      ]
+    },
+    "car_loan": {
+      "min_amount": 100000,
+      "max_amount": 10000000,
+      "min_tenure_years": 1,
+      "max_tenure_years": 7,
+      "base_rate_pct": 9.0,
+      "processing_fee_pct": 0.5,
+      "min_credit_score": 680,
+      "eligible_employment": [
+        "salaried",
+        "self_employed_professional",
+        "business"
+      ],
+      "required_documents": [
+        "Salary slips or ITR",
+        "Bank statements (last 3 months)",
+        "Vehicle quotation/invoice",
+        "KYC: Aadhaar + PAN"
+      ]
+    }
+  },
+  "general_eligibility": {
+    "min_age": 21,
+    "max_age_at_loan_maturity": 65,
+    "min_monthly_income_salaried": 25000,
+    "min_monthly_income_self_employed": 40000,
+    "max_debt_to_income_ratio": 0.5,
+    "max_loan_to_income_multiplier": 60
+  }
+}
