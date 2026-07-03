@@ -26,7 +26,8 @@ sentence-transformers==3.0.1     # local embedding fallback
 
 # ── Document Processing ───────────────────────────────────────────────────────
 pypdf==4.3.1                     # PDF ingestion
-python-docx==1.1.2               # DOCX ingestion
+python-docx==1.1.2               # DOCX ingestion (used by some loaders)
+docx2txt==0.9                    # DOCX ingestion (required by langchain Docx2txtLoader)
 unstructured==0.15.7             # universal document parser
 
 # ── Database ──────────────────────────────────────────────────────────────────
@@ -47,10 +48,10 @@ tenacity==8.5.0                 # retry logic
 structlog==24.4.0                # structured logging
 rich==13.8.1                     # pretty CLI output
 
-# ── Frontend (Streamlit) ──────────────────────────────────────────────────────
-streamlit==1.38.0
-streamlit-chat==0.1.1
-plotly==5.24.0
+# ── Frontend (React + Vite) ──────────────────────────────────────────────────
+# Frontend lives in ./frontend — see frontend/package.json for JS dependencies.
+# Run with:  cd frontend && npm install && npm run dev   (http://localhost:5173)
+# (The legacy Streamlit UI has been replaced by the React + Three.js app.)
 
 # ── Testing ───────────────────────────────────────────────────────────────────
 pytest==8.3.2

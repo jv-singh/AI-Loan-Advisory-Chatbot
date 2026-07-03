@@ -20,6 +20,7 @@ from fastapi.responses import JSONResponse
 
 from backend.config import settings
 from backend.api.routes import chat, documents, applicants
+from backend.api.middleware import user_context_middleware
 from backend.agents.orchestrator import get_graph
 
 log = structlog.get_logger(__name__)
@@ -67,6 +68,13 @@ app = FastAPI(
     redoc_url="/redoc",
     lifespan=lifespan,
 )
+
+# ── Middleware ─────────────────────────────────────────────────────────────────
+# Starlette processes middleware in REVERSE order of registration (last added
+# is outermost). CORS is added LAST so it runs outermost — preflight OPTIONS
+# requests are answered by CORS without ever reaching our custom middleware,
+# which is what we want.
+app.middleware("http")(user_context_middleware)
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
 app.add_middleware(

@@ -1,0 +1,12 @@
+{
+  "name": "loan-advisory-agent",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Root package.json — delegates to the frontend/ workspace.",
+  "scripts": {
+    "dev": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "preview": "npm --prefix frontend run preview",
+    "install:frontend": "npm --prefix frontend install"
+  }
+}

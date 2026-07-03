@@ -34,6 +34,26 @@ class DocumentUploadResponse(BaseModel):
     chunks_indexed: int
     status: str  # "success" | "error"
     message: str
+    # New: identifies the uploaded doc so the UI can show it in the docs panel
+    doc_id: Optional[str] = None
+    source: str = "user"  # "user" | "global" (only "user" in v1)
+    chunks: int = 0       # alias of chunks_indexed for frontend convenience
+
+
+class UserDocumentInfo(BaseModel):
+    """One entry per user-uploaded file, returned by GET /api/documents/list."""
+    doc_id: str
+    filename: str
+    file_type: str  # ".pdf" | ".docx" | ".txt" | ".md"
+    chunks: int
+    uploaded_at: str  # ISO 8601 UTC
+
+
+class UserDocumentListResponse(BaseModel):
+    """Response shape for GET /api/documents/list."""
+    user_documents: list[UserDocumentInfo] = Field(default_factory=list)
+    total_user_chunks: int = 0
+    note: Optional[str] = None
 
 
 # ── Response Models ────────────────────────────────────────────────────────────
@@ -51,7 +71,20 @@ class ChatResponse(BaseModel):
     """Full response sent back to the frontend."""
     session_id: str
     response: str
-    sources: list[str]
+    sources: list[str] = Field(
+        default_factory=list,
+        description="Combined list of all cited sources (policy + user). "
+                    "Kept for backward compatibility with the existing UI.",
+    )
+    policy_sources: list[str] = Field(
+        default_factory=list,
+        description="Sources that came from the global loan_policies collection.",
+    )
+    user_sources: list[dict] = Field(
+        default_factory=list,
+        description="Sources that came from the caller's user_docs collection. "
+                    "Each entry: {filename, doc_id, chunk_excerpt, score}.",
+    )
     confidence_score: float
     agent_metadata: Optional[AgentMetadata] = None
     error: Optional[str] = None

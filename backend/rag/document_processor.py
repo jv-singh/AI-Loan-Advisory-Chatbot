@@ -18,65 +18,30 @@ via the /api/documents/upload endpoint.
 
 from __future__ import annotations
 
-import hashlib
-import os
-from pathlib import Path
-
 import structlog
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import (
-    PyPDFLoader,
-    Docx2txtLoader,
-    TextLoader,
-)
+from pathlib import Path
 from langchain_chroma import Chroma
 
 from backend.config import settings
 from backend.llm import get_embeddings
+from backend.rag._common import (
+    LOADERS,
+    file_hash,
+    get_text_splitter,
+    load_document,
+)
 
 log = structlog.get_logger(__name__)
 
-# ── Supported file types ───────────────────────────────────────────────────────
-LOADERS: dict[str, type] = {
-    ".pdf":  PyPDFLoader,
-    ".docx": Docx2txtLoader,
-    ".txt":  TextLoader,
-    ".md":   TextLoader,
-}
-
 
 def _file_hash(path: Path) -> str:
-    """SHA256 hash of file content — used to skip already-ingested files."""
-    hasher = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(65536), b""):
-            hasher.update(chunk)
-    return hasher.hexdigest()
+    """Backwards-compatible alias for the hash helper (deprecated name)."""
+    return file_hash(path)
 
 
 def _load_document(path: Path) -> list:
-    """Load a document using the appropriate loader for its extension."""
-    ext = path.suffix.lower()
-    loader_cls = LOADERS.get(ext)
-    if not loader_cls:
-        log.warning("unsupported_file_type", path=str(path), ext=ext)
-        return []
-
-    try:
-        loader = loader_cls(str(path))
-        docs = loader.load()
-        # Tag each chunk with source metadata
-        for doc in docs:
-            doc.metadata.update({
-                "source": path.name,
-                "full_path": str(path),
-                "file_type": ext,
-            })
-        log.info("document_loaded", file=path.name, pages=len(docs))
-        return docs
-    except Exception as exc:
-        log.error("document_load_failed", path=str(path), error=str(exc))
-        return []
+    """Backwards-compatible alias (deprecated name)."""
+    return load_document(path)
 
 
 def ingest_documents(docs_dir: str | Path, force_reingest: bool = False) -> int:
@@ -104,11 +69,7 @@ def ingest_documents(docs_dir: str | Path, force_reingest: bool = False) -> int:
     )
 
     # ── Text splitter ──────────────────────────────────────────────────────────
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=settings.chunk_size,
-        chunk_overlap=settings.chunk_overlap,
-        separators=["\n\n", "\n", ". ", " ", ""],
-    )
+    splitter = get_text_splitter()
 
     all_chunks = []
     processed_files = 0

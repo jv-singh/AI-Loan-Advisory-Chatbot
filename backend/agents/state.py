@@ -49,6 +49,10 @@ class LoanAdvisoryState(TypedDict):
     session_id: str
     """Conversation session identifier for memory persistence."""
 
+    user_id: Optional[str]
+    """Browser-generated visitor UUID. Used to scope RAG retrieval to the
+    caller's own uploaded documents. None for anonymous/system queries."""
+
     # ── CLASSIFICATION ─────────────────────────────────────────────────────────
     query_type: str
     """One of: 'eligibility' | 'emi' | 'policy' | 'fraud_check' | 'general'"""
@@ -147,6 +151,7 @@ def initial_state(
     query: str,
     session_id: str,
     applicant_id: Optional[str] = None,
+    user_id: Optional[str] = None,
 ) -> LoanAdvisoryState:
     """
     Create a fresh state dict for a new query.
@@ -157,6 +162,7 @@ def initial_state(
         "query": query,
         "applicant_id": applicant_id,
         "session_id": session_id,
+        "user_id": user_id,
         # CLASSIFICATION
         "query_type": "general",
         "requires_agents": [],

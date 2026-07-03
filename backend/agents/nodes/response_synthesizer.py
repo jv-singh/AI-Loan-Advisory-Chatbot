@@ -119,6 +119,45 @@ def _extract_sources(documents: list[dict]) -> list[str]:
     return sources
 
 
+def _split_sources_by_origin(documents: list[dict]) -> tuple[list[str], list[dict]]:
+    """
+    Split retrieved documents into the two citations channels the UI uses:
+      - policy_sources: list of source names from the global loan_policies pool
+      - user_sources:   list of {filename, doc_id, chunk_excerpt, score} from
+                        the caller's user_docs pool
+
+    The retriever tags each chunk with `doc_source` ∈ {"policy", "user"}.
+    """
+    policy_seen: set[str] = set()
+    policy_sources: list[str] = []
+    user_sources: list[dict] = []
+    user_seen_ids: set[str] = set()
+
+    for doc in documents:
+        origin = doc.get("doc_source", "policy")
+        if origin == "user":
+            # For the user-doc citations, dedupe by doc_id (one chip per file),
+            # and surface the highest-scoring chunk as the excerpt.
+            meta = doc.get("metadata", {}) or {}
+            doc_id = meta.get("doc_id")
+            if not doc_id or doc_id in user_seen_ids:
+                continue
+            user_seen_ids.add(doc_id)
+            user_sources.append({
+                "doc_id": doc_id,
+                "filename": meta.get("filename", doc.get("source", "uploaded doc")),
+                "chunk_excerpt": (doc.get("content") or "")[:160].strip(),
+                "score": doc.get("score", 0.0),
+            })
+        else:
+            src = doc.get("source", "Unknown")
+            if src not in policy_seen:
+                policy_seen.add(src)
+                policy_sources.append(src)
+
+    return policy_sources, user_sources
+
+
 def _compute_confidence(state: LoanAdvisoryState) -> float:
     """
     Composite confidence score (0–1):
@@ -207,6 +246,8 @@ def _format_emi_response(emi_details: dict, query: str) -> dict:
     return {
         "final_response": response,
         "sources": [],
+        "policy_sources": [],
+        "user_sources": [],
         "confidence_score": 1.0,  # math is exact
         "fallback_triggered": False,
     }
@@ -255,6 +296,8 @@ def run(state: LoanAdvisoryState) -> dict:
                 f"*Technical detail: {error}*"
             ),
             "sources": [],
+            "policy_sources": [],
+            "user_sources": [],
             "confidence_score": 0.0,
             "fallback_triggered": True,
         }
@@ -293,17 +336,22 @@ def run(state: LoanAdvisoryState) -> dict:
             final_response += disclaimer
 
         sources = _extract_sources(documents)
+        policy_sources, user_sources = _split_sources_by_origin(documents)
 
         log.info(
             "response_synthesized",
             confidence=confidence,
             sources=sources,
+            policy_sources=policy_sources,
+            user_sources_count=len(user_sources),
             response_length=len(final_response),
         )
 
         return {
             "final_response": final_response,
             "sources": sources,
+            "policy_sources": policy_sources,
+            "user_sources": user_sources,
             "confidence_score": confidence,
             "fallback_triggered": confidence < settings.hallucination_threshold,
         }
@@ -316,6 +364,8 @@ def run(state: LoanAdvisoryState) -> dict:
                 "Please rephrase your question or contact support."
             ),
             "sources": [],
+            "policy_sources": [],
+            "user_sources": [],
             "confidence_score": 0.0,
             "fallback_triggered": True,
             "error": f"Synthesis failed: {exc}",

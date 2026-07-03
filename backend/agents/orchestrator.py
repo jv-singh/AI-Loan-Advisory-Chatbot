@@ -222,6 +222,7 @@ async def run_query(
     query: str,
     session_id: str,
     applicant_id: str | None = None,
+    user_id: str | None = None,
 ) -> dict:
     """
     High-level async entry point used by the FastAPI chat route.
@@ -230,6 +231,9 @@ async def run_query(
         query:        User's question
         session_id:   Conversation thread ID (maps to checkpointer thread)
         applicant_id: Optional — filters agent lookups to a specific applicant
+        user_id:      Optional — browser-generated UUID used to scope RAG
+                      retrieval to the caller's own uploaded documents.
+                      When None, retrieval only sees the global policy pool.
 
     Returns:
         Final state dict containing 'final_response', 'sources', 'confidence_score'
@@ -237,7 +241,12 @@ async def run_query(
     from .state import initial_state
 
     graph = get_graph()
-    state = initial_state(query=query, session_id=session_id, applicant_id=applicant_id)
+    state = initial_state(
+        query=query,
+        session_id=session_id,
+        applicant_id=applicant_id,
+        user_id=user_id,
+    )
     config = {"configurable": {"thread_id": session_id}}
 
     try:

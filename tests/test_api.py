@@ -124,10 +124,49 @@ async def test_document_upload_unsupported_type():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         r = await client.post(
             "/api/documents/upload",
+            headers={"X-User-Id": "test-user-abc"},
             files={"file": ("policy.csv", b"col1,col2\n1,2", "text/csv")},
         )
     assert r.status_code == 400
     assert "Unsupported" in r.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_document_upload_missing_user_id():
+    """Upload without X-User-Id must be rejected — we can't attribute the doc."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        r = await client.post(
+            "/api/documents/upload",
+            files={"file": ("policy.txt", b"some content", "text/plain")},
+        )
+    assert r.status_code == 400
+    assert "X-User-Id" in r.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_document_list_requires_user_id():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        r = await client.get("/api/documents/list")
+    assert r.status_code == 400
+    assert "X-User-Id" in r.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_document_list_isolated_per_user():
+    """Each X-User-Id sees only its own docs (starts empty for fresh UUIDs)."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        r1 = await client.get(
+            "/api/documents/list",
+            headers={"X-User-Id": "user-A-isolation-test"},
+        )
+        r2 = await client.get(
+            "/api/documents/list",
+            headers={"X-User-Id": "user-B-isolation-test"},
+        )
+    assert r1.status_code == 200
+    assert r2.status_code == 200
+    assert r1.json()["user_documents"] == []
+    assert r2.json()["user_documents"] == []
 
 
 # ── Applicants endpoint ────────────────────────────────────────────────────────
