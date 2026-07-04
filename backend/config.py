@@ -84,7 +84,12 @@ class Settings(BaseSettings):
     chunk_size: int = Field(800, alias="CHUNK_SIZE")
     chunk_overlap: int = Field(150, alias="CHUNK_OVERLAP")
     retrieval_top_k: int = Field(5, alias="RETRIEVAL_TOP_K")
-    retrieval_score_threshold: float = Field(0.35, alias="RETRIEVAL_SCORE_THRESHOLD")
+    # NOTE: all-MiniLM-L6-v2 is a 384-dim model that produces low absolute
+    # cosine similarity scores. A threshold of 0.35 silently drops most
+    # genuinely-relevant chunks. 0.20 is a meaningful floor for this model
+    # while still filtering out noise. If you swap to a larger embedding
+    # model (e.g. text-embedding-3-small), raise this back to ~0.35.
+    retrieval_score_threshold: float = Field(0.20, alias="RETRIEVAL_SCORE_THRESHOLD")
 
     # ── Agent ─────────────────────────────────────────────────────────────────
     max_iterations: int = Field(10, alias="MAX_ITERATIONS")

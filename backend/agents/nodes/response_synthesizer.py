@@ -164,8 +164,23 @@ def _compute_confidence(state: LoanAdvisoryState) -> float:
       - Retrieval confidence (40%)
       - Agent coverage (40%): how many expected agents actually ran
       - Fraud risk penalty (20%)
+
+    Retrieval scoring is normalized against the active score threshold so
+    that small embedding models (e.g. all-MiniLM-L6-v2, which rarely scores
+    above 0.4) don't unfairly drag the composite down. A chunk that JUST
+    passes the threshold still counts as a real hit.
     """
-    retrieval_score = state.get("retrieval_confidence", 0.0) * 0.40
+    raw_retrieval = state.get("retrieval_confidence", 0.0)
+    threshold = settings.retrieval_score_threshold
+
+    # Normalize: a chunk at/above threshold maps to ~1.0, anything below
+    # scales linearly toward 0.0. Caps at 1.0 so very-high scores don't
+    # over-inflate (which would make every policy answer look 100% sure).
+    if raw_retrieval <= 0:
+        retrieval_norm = 0.0
+    else:
+        retrieval_norm = min(1.0, raw_retrieval / max(threshold * 2.5, 0.01))
+    retrieval_score = retrieval_norm * 0.40
 
     # Agent coverage
     required = set(state.get("requires_agents", []))
@@ -305,12 +320,25 @@ def run(state: LoanAdvisoryState) -> dict:
     # ── Build prompt ───────────────────────────────────────────────────────────
     context_block  = _format_context(documents)
     agent_results  = _format_agent_results(state)
-    risk_warning   = LOW_CONFIDENCE_WARNING if hallucination_risk == "high" else ""
+
+    # The retriever labels hallucination risk from RAW embedding scores (which
+    # are inherently low for small models like all-MiniLM-L6-v2). The
+    # composite confidence is a much better signal. Recompute the risk label
+    # here from the composite so the LLM's prompt and the UI metadata
+    # reflect the more accurate number.
+    _composite = _compute_confidence(state)
+    if _composite >= 0.70:
+        effective_risk = "low"
+    elif _composite >= 0.50:
+        effective_risk = "medium"
+    else:
+        effective_risk = "high"
+    risk_warning = LOW_CONFIDENCE_WARNING if effective_risk == "high" else ""
 
     system_prompt = SYNTHESIZER_SYSTEM_PROMPT.format(
         context_block=context_block,
         agent_results=agent_results,
-        hallucination_risk=hallucination_risk.upper(),
+        hallucination_risk=effective_risk.upper(),
         risk_warning=risk_warning,
     )
 
@@ -326,6 +354,14 @@ def run(state: LoanAdvisoryState) -> dict:
 
         # ── Inject low-confidence disclaimer ──────────────────────────────────
         confidence = _compute_confidence(state)
+        # Use the same effective_risk logic as the prompt so the UI label
+        # matches the disclaimer behavior.
+        if confidence >= 0.70:
+            _effective_risk = "low"
+        elif confidence >= 0.50:
+            _effective_risk = "medium"
+        else:
+            _effective_risk = "high"
         if confidence < settings.hallucination_threshold:
             disclaimer = (
                 "\n\n---\n"
@@ -341,6 +377,7 @@ def run(state: LoanAdvisoryState) -> dict:
         log.info(
             "response_synthesized",
             confidence=confidence,
+            effective_risk=_effective_risk,
             sources=sources,
             policy_sources=policy_sources,
             user_sources_count=len(user_sources),
@@ -353,6 +390,7 @@ def run(state: LoanAdvisoryState) -> dict:
             "policy_sources": policy_sources,
             "user_sources": user_sources,
             "confidence_score": confidence,
+            "hallucination_risk": _effective_risk,  # override the retriever's label
             "fallback_triggered": confidence < settings.hallucination_threshold,
         }
 

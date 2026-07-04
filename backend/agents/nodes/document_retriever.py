@@ -149,9 +149,23 @@ def run(state: LoanAdvisoryState) -> dict:
                     user_id=user_id,
                 )
 
-        # ── Merge, dedupe, sort ───────────────────────────────────────────────
-        # Tag each result with its source before merging so downstream
-        # nodes can distinguish citations.
+        # ── Merge with per-collection slots ────────────────────────────────────
+        # Old behaviour: merge all results, sort by score, take top k.
+        # Problem: if the 5 global policy chunks all score higher than the 5
+        # user-doc chunks, the user docs were dropped entirely and the LLM
+        # never saw them — even though the user asked specifically about
+        # their own document.
+        #
+        # New behaviour: reserve a guaranteed slot for user docs (when the
+        # caller has any), then fill the rest of the context window with the
+        # highest-scoring chunks across both collections. This way the
+        # user's own document is always represented when it exists.
+        USER_DOC_MIN_SLOTS = 2  # always include up to N user-doc chunks
+        USER_DOC_FLOOR_SCORE = max(
+            0.15,  # absolute floor so we don't return garbage
+            settings.retrieval_score_threshold - 0.10,  # slightly looser than policy threshold
+        )
+
         tagged: list[tuple] = []
         for doc, score in policy_results:
             tagged.append((doc, score, "policy"))
@@ -170,9 +184,33 @@ def run(state: LoanAdvisoryState) -> dict:
             seen_content.add(key)
             deduped.append((doc, score, source))
 
-        # Sort by score desc, take top k.
-        deduped.sort(key=lambda x: x[1], reverse=True)
-        top = deduped[:k]
+        # ── Reserve user-doc slots first ───────────────────────────────────────
+        # Take the top USER_DOC_MIN_SLOTS user-doc chunks regardless of
+        # score, as long as they're above the (looser) user floor.
+        user_pool = sorted(
+            [t for t in deduped if t[2] == "user"],
+            key=lambda x: x[1],
+            reverse=True,
+        )
+        reserved_user: list[tuple] = []
+        for doc, score, _src in user_pool[:USER_DOC_MIN_SLOTS]:
+            if score >= USER_DOC_FLOOR_SCORE:
+                reserved_user.append((doc, score, "user"))
+
+        # ── Fill the rest from the global pool, sorted by score ───────────────
+        # Use a single global sort over everything, but make sure reserved
+        # user chunks are never displaced by slightly-higher policy scores.
+        remaining_budget = max(0, k - len(reserved_user))
+        other_pool = [t for t in deduped if t not in reserved_user]
+        other_pool.sort(key=lambda x: x[1], reverse=True)
+        top = reserved_user + other_pool[:remaining_budget]
+
+        log.info(
+            "retrieval_merge",
+            reserved_user_slots=len(reserved_user),
+            other_slots=len(top) - len(reserved_user),
+            user_floor=USER_DOC_FLOOR_SCORE,
+        )
 
         # ── Apply score threshold + format ────────────────────────────────────
         retrieved_docs = []
@@ -204,10 +242,16 @@ def run(state: LoanAdvisoryState) -> dict:
             user_chunks=sum(1 for d in retrieved_docs if d["doc_source"] == "user"),
         )
 
-        # ── Hallucination risk (unchanged) ────────────────────────────────────
-        if avg_confidence >= 0.7:
+        # ── Hallucination risk ────────────────────────────────────────────────
+        # Thresholds are derived from the active score_threshold so they
+        # work correctly with small embedding models (e.g. all-MiniLM-L6-v2,
+        # which rarely scores above 0.4). Absolute thresholds (0.7/0.45)
+        # were originally tuned for a stronger model and made every
+        # legitimate hit look "high" risk.
+        base = settings.retrieval_score_threshold
+        if avg_confidence >= base * 2.5:           # ~0.50 for base=0.20
             hallucination_risk = "low"
-        elif avg_confidence >= 0.45:
+        elif avg_confidence >= base * 1.5:         # ~0.30 for base=0.20
             hallucination_risk = "medium"
         else:
             hallucination_risk = "high"
